@@ -31,9 +31,6 @@ def decision_tree(sr,
         red = sr[:,:,2]
         nir = sr[:, :, 3]
 
-
-
-
     classIm = numpy.zeros([rows, cols])
     unclass = numpy.ones([rows, cols], dtype=bool)
 
@@ -84,9 +81,9 @@ def stack_scale_mask(fileDir, scale=0.0001):
 
     baseFilename = file[:-13]
 
-    landsatNumber = int(baseFilename[2])
+    landsat = int(baseFilename[2])
 
-    return srCube, cfmask, bmask, baseFilename, landsatNumber
+    return srCube, cfmask, bmask, baseFilename, landsat
 
 
 def timer(start,end):
@@ -112,12 +109,12 @@ if __name__ == '__main__':
     ## Read imagery, convert to proper form
     startTime = time.time()
 
-    fileDir = '/Users/vscholl/Documents/melt_pond/data/sr/path80row8/LC80820082015186-SC20160712151000'
+    fileDir = '/Users/vscholl/Documents/melt_pond/data/sr/path80row8/LT50800081986156-SC20160712145935'
 
     scale = 0.0001
 
-    srCube, cfmask, bmask, baseFilename, landsatNumber = stack_scale_mask(fileDir, scale)
-    print 'landsat number: ', landsatNumber
+    srCube, cfmask, bmask, baseFilename, landsat = stack_scale_mask(fileDir, scale)
+    print 'landsat number: ', landsat
     endTime = time.time()
     print 'Time elapsed to stack and scale SR and create masks:' # ~3min
     timer(startTime, endTime)
@@ -126,16 +123,24 @@ if __name__ == '__main__':
     ## Classification
 
     # Decision tree: define thresholds
-    bThresh = 0.2
+
+    if landsat == 5: # water is [abnormally] brighter in L5 imagery
+        bThresh = 0.4
+        nirThresh = 0.3
+
+    else: # water is darker in L8 and L7 imagery
+        bThresh = 0.2
+        nirThresh = 0.25
+
     gradientThresh = -0.1
-    nirThresh = 0.25
+
     print 'decision thresholds: blue = ', str(bThresh), ', ', \
           'gradient =  ', str(gradientThresh), ', ', \
           'nir = ', str(nirThresh)
 
     print 'Performing decision tree classification...'
     treeStartTime = time.time()
-    classIm = decision_tree(srCube, bThresh, gradientThresh, nirThresh, landsatNumber)
+    classIm = decision_tree(srCube, bThresh, gradientThresh, nirThresh, landsat)
     treeEndTime = time.time()
     print 'Time elapsed during decision tree:' # ~4min
     timer(treeStartTime, treeEndTime)

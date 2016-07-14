@@ -1,8 +1,8 @@
 PRO test
 
 ; specify directory of sr images
-dir = '/Users/vscholl/Documents/melt_pond/data/sr/path80row8/
-scene = 'LC80800082015172-SC20160712150214/' ;make sure there is a '/' at the end 
+dir = '/Users/vscholl/Documents/melt_pond/data/sr/path7475row910/
+scene = 'LT50750092009168-SC20160714131203/' ;make sure there is a '/' at the end 
 landsatNumber = scene.CharAt(2)
 dir = dir + scene
 filenames = file_search(dir + '*sr_band*')

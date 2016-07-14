@@ -168,3 +168,6 @@ for line in lines:
     stats.append(stat)
 print labels
 print stats
+
+cv2.imshow('class image', classImScaled)
+cv2.waitKey(0)
