@@ -171,3 +171,58 @@ print stats
 
 cv2.imshow('class image', classImScaled)
 cv2.waitKey(0)
+
+
+
+# parsing XML
+from xml.dom.minidom import parse
+xmlFile = '/Users/vscholl/Documents/melt_pond/data/sr/LC80800082015172-SC20160617110020/LC80800082015172LGN00.xml'
+dom = parse(xmlFile)
+ids  = dom.getElementsByTagName('bounding_coordinates')
+
+import xml.etree.ElementTree
+root = xml.etree.ElementTree.parse(xmlFile).getroot()
+for child in root:
+        print child.tag, child.attrib
+        tag = child.tag
+        list = tag.getchildren()
+        print list
+
+for attributes in root.iter(child.tag):
+    attribute_list = attributes.getchildren()
+print attribute_list
+
+
+import xml.etree.ElementTree
+root = xml.etree.ElementTree.parse(xmlFile).getroot()
+subroot = root.getchildren()
+global_metadata = subroot[0]
+elements = global_metadata.getchildren()
+cornerUL = elements[11].attrib
+cornerLR = elements[12].attrib
+
+latUL = float(cornerUL['latitude'])
+lonUL = float(cornerUL['longitude'])
+latLR = float(cornerLR['latitude'])
+lonLR = float(cornerLR['longitude'])
+print 'Upper Left lat, lon = ', latUL, lonUL
+print 'Lower Right lat, lon = ', latLR, lonLR
+
+latLL = latLR
+lonLL = lonUL
+latUR = latUL
+lonUR = lonLR
+print 'Lower Left lat, lon = ', latLL, lonLL
+print 'Upper Right lat, lon = ', latUR, lonUR
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+n = 100000
+x = np.random.standard_normal(n)
+y = 2.0 + 3.0 * x + 4.0 * np.random.standard_normal(n)
+plt.hexbin(x,y)
+
+plt.show()
+
