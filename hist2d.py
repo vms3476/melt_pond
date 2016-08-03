@@ -5,6 +5,7 @@ import utm
 import os
 import osr
 from xml.dom.minidom import parse
+from matplotlib import pyplot as plt
 
 
 def hist2d(classIm):
@@ -30,9 +31,11 @@ if __name__ == '__main__':
     xmlFile = '/Users/vscholl/Documents/melt_pond/data/sr/LC80800082015172-SC20160617110020/LC80800082015172LGN00.xml'
 
     im = gdal.Open(classImFile)
-    classIm = numpy.asarray(im.GetRasterBand(1).ReadAsArray())
+    classIm = numpy.asarray(im.GetRasterBand(1).ReadAsArray()).astype('int')
     rows, cols = classIm.shape
-    pondIm = (classIm == 3.0).astype('uint8')
+    pondIm = (classIm == 3)
+    waterIm = (classIm == 2)
+    iceIm = (classIm == 1)
     print 'total # of pond pixels: ', numpy.sum(pondIm)
     print 'number of pond pixels in upper right quadrant: ', numpy.sum(pondIm[0:rows / 2, 0:cols / 2])
 
@@ -47,14 +50,20 @@ if __name__ == '__main__':
     cv2.imshow('class image', classImResized)
     cv2.waitKey(0)
     """
-    """
+
+    #"""
     # display binary image with pond pixels = 1
+    classIm = (classIm==3)
     classImScaled = (classIm / classIm.max() * 255).astype(numpy.uint8)
     classImResized = cv2.resize(classImScaled,(rows/10, cols/10))
-    cv2.namedWindow('class image', cv2.WINDOW_NORMAL)
-    cv2.imshow('class image', classImResized)
-    cv2.waitKey(0)
-    """
+    pondImScaled = (pondIm / pondIm.max() * 255).astype(numpy.uint8)
+    pondImResized = cv2.resize(pondImScaled, (rows / 10, cols / 10))
+    #cv2.namedWindow('class image', cv2.WINDOW_NORMAL)
+    #cv2.imshow('class image', classImResized)
+    #cv2.waitKey(0)
+    #"""
+
+
 
     """
     # read tif file for coordinate information
@@ -119,16 +128,19 @@ if __name__ == '__main__':
 
 
     # create 2d histogram image showing where the pond pixels occur
+    print ' dimensions of pond im: ', pondIm.shape
 
-    testIm = pondIm[0:-1,0:-1]
+    gridRows = 20
+    gridCols = 20
 
-    gridRows = testIm.shape[0] / 10
-    gridCols = testIm.shape[1] / 10
+    rowInc = numpy.floor(rows * 1.0 / gridRows).astype('int') # row increment, number of image rows per grid pixel row
+    colInc = numpy.floor(cols * 1.0 / gridCols).astype('int') # col increment, number of image columns per grid pixel column
 
-    rowInc = rows * 1.0 / gridRows # row increment, number of image rows per grid pixel row
-    colInc = cols * 1.0 / gridCols # col increment, number of image columns per grid pixel column
+    print 'row increment: ', rowInc
+    print 'col increment: ', colInc
 
-    gridIm = numpy.zeros((gridRows,gridCols))
+    gridIm = numpy.zeros((gridRows,gridCols)) # keeps track of # of pond class pixels in area
+    fractionIm = numpy.zeros((gridRows,gridCols)) #keeps track of average pond fraction in area
 
     print 'gridIm dimensions: ', gridIm.shape
 
@@ -137,23 +149,77 @@ if __name__ == '__main__':
     for r in range(0,gridRows):
         #print 'current row of grid image: ', r
         for c in range(0,gridCols):
-            #print 'current col of grid image: ', c
-            gridIm[r,c] = numpy.sum(pondIm[i:i+rowInc,j:j+colInc])
-            #print 'sum of pond pixels in this region: ', numpy.sum(pondIm[i:i+rowInc,j:j+colInc])
+
+            #print 'current i value: ', i       # debugging
+            #print 'current j value: ', j
+            #print 'current r value: ', r
+            #print 'current c value: ', c
+            #print 'i + rowInc: ', str(i + rowInc)
+            #print 'j + colInc: ', str(j + colInc)
+            #print 'sum of pond pixels in this region: ', numpy.sum(pondIm[i:i + rowInc, j:j + colInc])
+            #print '--------'
+
+
+            # check for the last row or column
+            if r == (gridRows-1):
+                gridIm[r, c] = numpy.sum(pondIm[i:, j:j + colInc])
+                pondCount = pondIm[i:, j:j + colInc]
+                iceCount = iceIm[i:, j:j + colInc]
+                fraction = (pondCount * 1.0 / ( pondCount + iceCount))
+                fractionIm[r,c] = numpy.mean(numpy.mean(fraction))
+
+            elif c == (gridCols-1):
+                gridIm[r, c] = numpy.sum(pondIm[i:i + rowInc, j:])
+                pondCount = pondIm[i:, j:j + colInc]
+                iceCount = iceIm[i:, j:j + colInc]
+                fraction = (pondCount * 1.0 / ( pondCount + iceCount))
+                fractionIm[r,c] = numpy.mean(numpy.mean(fraction))
+
+            else:
+                gridIm[r, c] = numpy.sum(pondIm[i:i + rowInc, j:j + colInc])
+                pondCount = numpy.sum(pondIm[i:i + rowInc, j:j + colInc])
+                print 'pond count at current region: ', pondCount
+                iceCount = numpy.sum(iceIm[i:i + rowInc, j:j + colInc])
+                print 'ice count at current region: ', iceCount
+                fraction = (pondCount * 1.0 / ( pondCount + iceCount))
+                print 'fraction at current region: ', fraction
+                fractionIm[r,c] = fraction
+                print ' --------- '
 
             j += colInc
         i += rowInc
+        j = 0
 
-    print numpy.max(gridIm)
-
-    print 'value of grid im pixel 0,0 = ', gridIm[0,0]
-
+    #print fractionIm
 
     # scale the grid image for display
     gridImScaled = (gridIm / gridIm.max() * 255).astype(numpy.uint8)
     gridImResized = cv2.resize(gridImScaled, (rows / 10, cols / 10))
-    cv2.namedWindow('grid image', cv2.WINDOW_NORMAL)
+    #cv2.namedWindow('grid image', cv2.WINDOW_NORMAL)
     #cv2.imshow('grid image', gridImResized)
     #cv2.waitKey(0)
 
+    fig= plt.figure()
+    latTicks = numpy.linspace(latLL, latUL, 9)
+    lonTicks = numpy.linspace(lonLL, lonLR, 9)
 
+    print 'lats: ', latTicks
+    print 'lons: ', lonTicks
+
+    plt.xticks(lonTicks)
+    plt.yticks(latTicks)
+    plt.title('Binary Class Image, 1 = Melt Pond')
+    plt.xlabel('Longitude [decimal degrees] W')
+    plt.ylabel('Latitude [decimal degrees] N')
+    plt.imshow(classImResized, cmap='gray') #, extent=[lonLL,lonLR,latLL,latUL],) # show original class map highlighting ponds
+
+    gridFig = plt.figure()
+    plt.imshow(gridIm,interpolation='none')         # show the binned class map
+    plt.title('Number of Pond Class Pixels per Gridded Region')
+    plt.colorbar()
+
+    fractionFig = plt.figure()
+    plt.imshow(fractionIm,interpolation='none')         # show the binned class map
+    plt.colorbar()
+
+    plt.show()

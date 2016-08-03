@@ -5,7 +5,6 @@ import glob
 import os
 import gdal
 from osgeo import gdal
-from PIL import Image
 import spectral.io.envi as envi
 
 
@@ -109,7 +108,7 @@ if __name__ == '__main__':
     ## Read imagery, convert to proper form
     startTime = time.time()
 
-    fileDir = '/Users/vscholl/Documents/melt_pond/data/sr/path80row8/LT50800081986156-SC20160712145935'
+    fileDir = '/Users/vscholl/Documents/melt_pond/data/sr/path80row8/LT50800081986204-SC20160712150052'
 
     scale = 0.0001
 

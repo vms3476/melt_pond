@@ -5,7 +5,6 @@ import glob
 import os
 import gdal
 from osgeo import gdal
-from PIL import Image
 import spectral.io.envi as envi
 
 
@@ -30,9 +29,6 @@ def decision_tree(sr,
         green = sr[:,:,1]
         red = sr[:,:,2]
         nir = sr[:, :, 3]
-
-
-
 
     classIm = numpy.zeros([rows, cols])
     unclass = numpy.ones([rows, cols], dtype=bool)
@@ -109,21 +105,23 @@ def pixel2coord(col, row):
 
 if __name__ == '__main__':
 
-    processingDir = '/Users/vscholl/Documents/melt_pond/data/sr/path80row8/'
-    os.chdir(processingDir)
-    dirList = glob.glob('L*')
 
+    mainDir = '/Users/vscholl/Documents/melt_pond/data/sr/'
+    processingDir = 'path80row8/'
+    classificationDir = '/Users/vscholl/Documents/melt_pond/data/classification/' + processingDir
+    classImageFilename = '_decision_tree_classification_bThreshPoint32.hdr'
+    statFilename = 'pond_stats.txt' # filename for text file with pond stats info
+
+    os.chdir(mainDir + processingDir)
+    dirList = glob.glob('L*')
+    counter = 0
     for fileDir in dirList:
 
         print 'currently processing ', fileDir
 
         ## Read imagery, convert to proper form
         startTime = time.time()
-
-        #fileDir = '/Users/vscholl/Documents/melt_pond/data/sr/path80row8/LT50810082006186-SC20160712150350'
-
         scale = 0.0001
-
         srCube, cfmask, bmask, baseFilename, landsat = stack_scale_mask(fileDir, scale)
         print 'landsat number: ', landsat
         endTime = time.time()
@@ -135,7 +133,7 @@ if __name__ == '__main__':
 
         # Decision tree: define thresholds
         if landsat == 5:  # water is [abnormally] brighter in L5 imagery
-            bThresh = 0.4
+            bThresh = 0.32
             nirThresh = 0.3
 
         else:  # water is darker in L8 and L7 imagery
@@ -161,12 +159,6 @@ if __name__ == '__main__':
         print 'dimensions of classImMasked: ', classImMasked.shape
 
 
-
-
-
-
-
-
         ## Statistics
 
         # Determine number of pixels assigned as each material
@@ -187,21 +179,27 @@ if __name__ == '__main__':
         print 'Total elapsed time: '
         timer(startTime, totalEndTime)
 
-        # Save stat info anf classification image
-        outDir = '/Users/vscholl/Documents/melt_pond/data/classification/' + baseFilename + '/'
-        hdrFilename = baseFilename + 'decision_tree_classification_test.hdr'
-        statFilename = baseFilename + '_stats.txt'
+        # Save stat info and classification image
+        hdrFilename = baseFilename + classImageFilename
 
-        if not os.path.exists(outDir):
-            os.makedirs(outDir)
+        if not os.path.exists(classificationDir + baseFilename):
+            os.makedirs(classificationDir + baseFilename)
 
-        f = open(outDir + statFilename, 'w') # write basic stat info to file
-        f.write('pond fraction \t' + str(pondFraction) + '\n')
-        f.write('unclass count \t' + str(unclassCount) + '\n')
-        f.write('ice count \t' + str(iceCount) + '\n')
-        f.write('water count \t' + str(waterCount) + '\n')
-        f.write('pond count \t' + str(pondCount) + '\n')
-        f.close()
+        if counter == 0: # for first iteration, write column titles
+            f = open(classificationDir + statFilename, 'w')
+            f.write('Landsat ID \t' +
+                'Class 0: Unclassified # Pixels \t' +
+                'Class 1: Ice/Snow # Pixels \t' +
+                'Class 2: Water # Pixels \t' +
+                'Class 3: Melt Pond \t' +
+                'Pond Fraction (Pond / (Pond + Ice)) \n')
+
+        f.write(baseFilename + '\t' +
+                str(unclassCount) + '\t' +
+                str(iceCount) + '\t' +
+                str(waterCount) + '\t' +
+                str(pondCount) + '\t' +
+                str(pondFraction) + '\n')
 
         ## to read the stat text file:
         #f = open(outDir + statFilename, 'r')
@@ -234,21 +232,16 @@ if __name__ == '__main__':
         pondColor = [35, 178, 139]
         classColors = unclassColor + iceColor + waterColor + pondColor
 
-        envi.save_classification(outDir + hdrFilename,
+        envi.save_classification(classificationDir + baseFilename + '/' + hdrFilename,
                                  classImMasked,
                                  metadata=metadata,
                                  class_names=classNames,
                                  class_colors=classColors,
                                  force=True)
 
+        os.chdir(mainDir + processingDir)
+        counter += 1 # advance to next row in output text file
 
-        # Create 2d histogram image based on lat/long
-
-
-        # convert pixel coordinate to lat/long
-
-        os.chdir(processingDir)
-
-
+    f.close()
 
 

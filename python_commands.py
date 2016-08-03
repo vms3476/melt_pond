@@ -226,3 +226,6 @@ plt.hexbin(x,y)
 
 plt.show()
 
+
+
+gdalinfo '/Users/vscholl/Documents/melt_pond/data/seadas/path80row8/LC80800082015172LGN00.L2OC.nc'
