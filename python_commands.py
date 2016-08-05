@@ -229,3 +229,34 @@ plt.show()
 
 
 gdalinfo '/Users/vscholl/Documents/melt_pond/data/seadas/path80row8/LC80800082015172LGN00.L2OC.nc'
+
+thresholds = numpy.array(([0.3, 0.3, -0.1,  # L5     # iteration 1
+                           0.2, 0.25, -0.1,  # L7
+                           0.2, 0.25, -0.1],  # L8
+
+                          [0.32, 0.3, -0.1,  # L5     # iteration 2
+                           0.2, 0.25, -0.1,  # L7
+                           0.2, 0.25, -0.1],  # L8
+
+                          [0.34, 0.3, -0.1,  # L5     # iteration 3
+                           0.2, 0.25, -0.1,  # L7
+                           0.2, 0.25, -0.1]))  # L8
+for i in range(0, thresholds.shape[0]):  # row dimension in threshold array
+
+    # Decision tree: assign thresholds based on input
+    if landsat == 5:  # water is [abnormally] brighter in L5 imagery
+        l = 0  # column dimension within threshold array
+
+    elif landsat == 7:
+        l = 1
+
+    else:  # water is darker in L8 and L7 imagery
+        l = 2
+
+    bThresh = thresholds[i, 0 + 3 * l]
+    nirThresh = thresholds[i, 1 + 3 * l]
+    gradientThresh = thresholds[i, 2 + 3 * l]
+
+print 'decision thresholds: blue = ', str(bThresh), ', ', \
+    'gradient =  ', str(gradientThresh), ', ', \
+    'nir = ', str(nirThresh)

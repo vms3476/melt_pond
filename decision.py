@@ -142,7 +142,27 @@ def pixel2coord(col, row):
     yp = d * col + e * row + d * 0.5 + e * 0.5 + f
     return(xp, yp)
 
-# def write_stats_file(classImMasked):
+# def write_stats_file(classImMasked,
+#                      classificationDir,
+#                      baseFilename,
+#                      classImageFilename,
+#                      statFilename):
+#
+#     """Write class image to file, creates text file with stats.
+#
+#     Args:
+#         classImMasked: numpy array with integer values to be written as an
+#             ENVI classification file
+#         classificationDir: file path to which classification files are
+#             written, of type <str>
+#         baseFilename: Landsat ID of the current scene, of type <str>
+#         classImageFilename: filename of classification image to be appended
+#             onto the baseFilename for classification images, of type <str>
+#
+#     Returns:
+#         None
+#
+#     """
 #
 #     # Determine number of pixels assigned as each material
 #     unclassCount = numpy.sum(classImMasked == 0)
@@ -162,6 +182,7 @@ def pixel2coord(col, row):
 #     # Save stat info and classification image
 #     hdrFilename = baseFilename + classImageFilename
 #
+#     # combine current thresholds to name the classification directory
 #     if not os.path.exists(classificationDir + baseFilename):
 #         os.makedirs(classificationDir + baseFilename)
 #
@@ -247,8 +268,55 @@ if __name__ == '__main__':
     mainDir = '/Users/vscholl/Documents/melt_pond/data/sr/'
     processingDir = 'threshold_testing/'
     classificationDir = '/Users/vscholl/Documents/melt_pond/data/classification/' + processingDir
-    classImageFilename = '_decision_tree_classification_image.hdr'
-    statFilename = 'pond_stats.txt' # filename for text file with pond stats info
+    statFilename = 'classification_stats.txt' # filename for text file with pond stats info
+
+
+    # to test thresholding
+                               #b   #nir  #gradient
+    thresholds = numpy.array(([0.3, 0.3,  -0.1,     # L5     # blue threshold for L5
+                               0.2, 0.25, -0.1,    # L7
+                               0.2, 0.25, -0.1],   # L8
+
+                              [0.31, 0.3, -0.1,    # L5
+                               0.2, 0.25, -0.1,    # L7
+                               0.2, 0.25, -0.1],   # L8
+
+                              [0.32, 0.3, -0.1,  # L5
+                               0.2, 0.25, -0.1,  # L7
+                               0.2, 0.25, -0.1],  # L8
+
+                              [0.33, 0.3, -0.1,  # L5
+                               0.2, 0.25, -0.1,  # L7
+                               0.2, 0.25, -0.1],  # L8
+
+                              [0.34, 0.3, -0.1,    # L5
+                               0.2, 0.25, -0.1,    # L7
+                               0.2, 0.25, -0.1],   # L8
+
+                              [0.32, 0.3, -0.1,             # gradient threshold analysis
+                               0.2, 0.25, -0.1,
+                               0.2, 0.25, -0.1],
+
+                              [0.32, 0.3, -0.11,
+                               0.2, 0.25, -0.11,
+                               0.2, 0.25, -0.11],
+
+                              [0.32, 0.3, -0.12,
+                               0.2, 0.25, -0.12,
+                               0.2, 0.25, -0.12],
+
+                              [0.32, 0.3, -0.09,
+                               0.2, 0.25, -0.09,
+                               0.2, 0.25, -0.09],
+
+                              [0.32, 0.3, -0.08,
+                               0.2, 0.25, -0.08,
+                               0.2, 0.25, -0.08]))
+
+
+
+    createNewStatFile = 'False'
+
     ###########################
 
 
@@ -258,10 +326,10 @@ if __name__ == '__main__':
     startTime = time.time()
     os.chdir(mainDir + processingDir)
     dirList = glob.glob('L*')
-    counter = 0
+    counter = 0 # used to determine the first iteration
     for fileDir in dirList:
         print 'currently processing ', fileDir
-        ## Read imagery, convert to proper form
+        ## Read imagery, convert to units of reflectance in a single array
         scale = 0.0001
         srCube, cfmask, bmask, baseFilename, landsat = stack_scale_mask(fileDir, scale)
         print 'landsat number: ', landsat
@@ -270,126 +338,150 @@ if __name__ == '__main__':
         timer(startTime, endTime)
 
 
-
-        ## Classification
-
-        # Decision tree: define thresholds
-        if landsat == 5:  # water is [abnormally] brighter in L5 imagery
-            bThresh = 0.32
-            nirThresh = 0.3
-
-        else:  # water is darker in L8 and L7 imagery
-            bThresh = 0.2
-            nirThresh = 0.25
-
-        gradientThresh = -0.1
-
-        print 'decision thresholds: blue = ', str(bThresh), ', ', \
-              'gradient =  ', str(gradientThresh), ', ', \
-              'nir = ', str(nirThresh)
-
-        print 'Performing decision tree classification...'
-        treeStartTime = time.time()
-        classIm = decision_tree(srCube, bThresh, gradientThresh, nirThresh, landsat)
-        treeEndTime = time.time()
-        print 'Time elapsed during decision tree:'
-        timer(treeStartTime, treeEndTime)
-
-        # Apply cloud and landsat fill masks to class image
-        classImMasked = bmask * cfmask * classIm
-        rows, cols = classImMasked.shape
-        print 'dimensions of classImMasked: ', classImMasked.shape
-
-
-
-        ## Statistics
-
-        # Determine number of pixels assigned as each material
-        unclassCount = numpy.sum(classImMasked == 0)
-        iceCount = numpy.sum(classImMasked == 1)
-        waterCount = numpy.sum(classImMasked == 2)
-        pondCount = numpy.sum(classImMasked == 3)
-
-        print '# unclassified pixels = ', unclassCount
-        print '# ice class pixels = ', iceCount
-        print '# water class pixels = ', waterCount
-        print '# pond class pixels = ', pondCount
-
-        # Compute pond fraction (defined as the percent of total ice area)
-        pondFraction = (pondCount * 1.0 / ( pondCount + iceCount)) * 100
-        print 'Pond Fraction using decision tree for current image: %.4f' % pondFraction
-
-        # Save stat info and classification image
-        hdrFilename = baseFilename + classImageFilename
-
         if not os.path.exists(classificationDir + baseFilename):
             os.makedirs(classificationDir + baseFilename)
 
-        if counter == 0: # for first iteration, write column titles and threshold values
+        # for first iteration, if createNewTextFile has been assigned to True,
+        # create a new text file and write the column titles and threshold values.
+        # otherwise, append to the existing file.
+        if counter == 0 and createNewStatFile:
             f = open(classificationDir + statFilename, 'w')
             f.write('Landsat ID \t' +
-                'Blue threshold: \t' +
-                'NIR threshold: \t' +
-                'Gradient threshold: \t' +
-                'Class 0: Unclassified # Pixels \t' +
-                'Class 1: Ice/Snow # Pixels \t' +
-                'Class 2: Water # Pixels \t' +
-                'Class 3: Melt Pond \t' +
-                'Pond Fraction per Scene (Pond / (Pond + Ice)) \n')
+                    'Blue threshold: \t' +
+                    'NIR threshold: \t' +
+                    'Gradient threshold: \t' +
+                    'Class 0: Unclassified # Pixels \t' +
+                    'Class 1: Ice/Snow # Pixels \t' +
+                    'Class 2: Water # Pixels \t' +
+                    'Class 3: Melt Pond \t' +
+                    'Pond Fraction per Scene (Pond / (Pond + Ice)) \n')
+            f.close()
 
-        f.write(baseFilename + '\t' +
-                str(bThresh) + '\t' +
-                str(nirThresh) + '\t' +
-                str(gradientThresh) + '\t' +
-                str(unclassCount) + '\t' +
-                str(iceCount) + '\t' +
-                str(waterCount) + '\t' +
-                str(pondCount) + '\t' +
-                str(pondFraction) + '\n')
 
-        ## to read the stat text file:
-        #f = open(outDir + statFilename, 'r')
-        #lines = f.read().splitlines()
-        #labels = []
-        #stats = []
-        #for line in lines:
-        #    label, stat = line.strip().split('\t')
-        #    labels.append(label)
-        #    stats.append(stat)
-        #print labels
-        #print stats
 
-        # define metadata parameters for classification header file
-        metadata = {'lines': cols,
-                    'samples': rows,
-                    'bands': 1,
-                    'data type': 1,
-                    'classes': 4,
-                    'byte order': 0,
-                    'header offset': 0,
-                    'description': 'Decision Tree Initial Classification Result',
-                    'file type': 'ENVI Classification'}
+        ## Classification
 
-        # set class names and colors for display in ENVI
-        classNames =  ['Unclassified', 'Ice', 'Water', 'Pond']
-        unclassColor = [0, 0, 0]
-        iceColor = [255, 255, 255]
-        waterColor = [0, 0, 190]
-        pondColor = [35, 178, 139]
-        classColors = unclassColor + iceColor + waterColor + pondColor
+        for i in range(0,thresholds.shape[0]): # row dimension in threshold array
 
-        envi.save_classification(classificationDir + baseFilename + '/' + hdrFilename,
-                                 classImMasked,
-                                 metadata=metadata,
-                                 class_names=classNames,
-                                 class_colors=classColors,
-                                 force=True)
-        endTime = time.time()
-        print 'Time elapsed for decision tree & class image generation:' # ~4min
-        timer(startTime, endTime)
+            # Decision tree: assign thresholds based on input
+            if landsat == 5:  # water is [abnormally] brighter in L5 imagery
+                l = 0   # column dimension within threshold array
 
-        os.chdir(mainDir + processingDir)
-        counter += 1 # advance to next row in output text file
+            elif landsat == 7:
+                l = 1
+
+            else:  # water is darker in L8 and L7 imagery
+                l = 2
+
+            bThresh = thresholds[i, 0 + 3 * l]
+            nirThresh = thresholds[i, 1 + 3 * l]
+            gradientThresh = thresholds[i, 2 + 3 * l]
+
+            print 'decision thresholds: blue = ', str(bThresh), ', ', \
+                  'gradient =  ', str(gradientThresh), ', ', \
+                  'nir = ', str(nirThresh)
+
+            # check to see if this image and threshold combination already exists
+            line = baseFilename+'\t'+str(bThresh)+'\t'+str(nirThresh)+'\t'+str(gradientThresh)
+            if line in open(classificationDir + statFilename).read():
+                print 'this image has already been processed with the current decision thresholds'
+                pass
+
+            else:
+                print 'Performing decision tree classification...'
+                treeStartTime = time.time()
+                classIm = decision_tree(srCube, bThresh, gradientThresh, nirThresh, landsat)
+                treeEndTime = time.time()
+                print 'Time elapsed during decision tree:'
+                timer(treeStartTime, treeEndTime)
+
+                # Apply cloud and landsat fill masks to class image
+                classImMasked = bmask * cfmask * classIm
+                rows, cols = classImMasked.shape
+                print 'dimensions of classImMasked: ', classImMasked.shape
+
+
+
+                ## Statistics
+    #           write_stats_file(classImMasked, classificationDir, baseFilename, classImageFilename)
+
+                # Determine number of pixels assigned as each material
+                unclassCount = numpy.sum(classImMasked == 0)
+                iceCount = numpy.sum(classImMasked == 1)
+                waterCount = numpy.sum(classImMasked == 2)
+                pondCount = numpy.sum(classImMasked == 3)
+
+                print '# unclassified pixels = ', unclassCount
+                print '# ice class pixels = ', iceCount
+                print '# water class pixels = ', waterCount
+                print '# pond class pixels = ', pondCount
+
+                # Compute pond fraction (defined as the percent of total ice area)
+                pondFraction = (pondCount * 1.0 / ( pondCount + iceCount)) * 100
+                print 'Pond Fraction using decision tree for current image: %.4f' % pondFraction
+
+                # Save stat info and classification image
+                # create a string to name class images with specificity
+                threshStr = ('blue' + str(bThresh) + '_gradient' +  str(gradientThresh) + '_nir' + str(nirThresh)).replace('.','')
+                classImageFilename = '_decision_tree_class_image_' + threshStr + '.hdr'
+                hdrFilename = baseFilename + classImageFilename
+
+                f = open(classificationDir + statFilename, 'a') # open file to append lines
+
+                f.write(baseFilename + '\t' +
+                    str(bThresh) + '\t' +
+                    str(nirThresh) + '\t' +
+                    str(gradientThresh) + '\t' +
+                    str(unclassCount) + '\t' +
+                    str(iceCount) + '\t' +
+                    str(waterCount) + '\t' +
+                    str(pondCount) + '\t' +
+                    str(pondFraction) + '\n')
+
+            ## to read the stat text file:
+            #f = open(outDir + statFilename, 'r')
+            #lines = f.read().splitlines()
+            #labels = []
+            #stats = []
+            #for line in lines:
+            #    label, stat = line.strip().split('\t')
+            #    labels.append(label)
+            #    stats.append(stat)
+            #print labels
+            #print stats
+
+                # define metadata parameters for classification header file
+                metadata = {'lines': cols,
+                        'samples': rows,
+                        'bands': 1,
+                        'data type': 1,
+                        'classes': 4,
+                        'byte order': 0,
+                        'header offset': 0,
+                        'description': 'Decision Tree Initial Classification Result',
+                        'file type': 'ENVI Classification'}
+
+                # set class names and colors for display in ENVI
+                classNames =  ['Unclassified', 'Ice', 'Water', 'Pond']
+                unclassColor = [0, 0, 0]
+                iceColor = [255, 255, 255]
+                waterColor = [0, 0, 190]
+                pondColor = [35, 178, 139]
+                classColors = unclassColor + iceColor + waterColor + pondColor
+
+                envi.save_classification(classificationDir + baseFilename + '/' + hdrFilename,
+                                     classImMasked,
+                                     metadata=metadata,
+                                     class_names=classNames,
+                                     class_colors=classColors,
+                                     force=True)
+                endTime = time.time()
+                print 'Time elapsed for decision tree & class image generation:' # ~4min
+                timer(startTime, endTime)
+
+
+                os.chdir(mainDir + processingDir)
+                counter += 1 # advance to next row in output text file
 
     f.close()
 
