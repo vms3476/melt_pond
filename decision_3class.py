@@ -10,9 +10,10 @@ import spectral.io.envi as envi
 
 def decision_tree(sr,
                   bThresh,
+                  nirIceThresh,
                   gradientThresh,
-                  nirThresh,
-                  landsat='8'):
+                  nirPondThresh,
+                  landsat):
 
     """Performs decision tree classification.
 
@@ -41,7 +42,8 @@ def decision_tree(sr,
             assigned class of each surface reflectance pixel:
                 1 = ice
                 2 = water
-                3 = pond
+                3 = shallow pond
+                4 = deep pond
                 0 = unclassified
 
     """
@@ -78,6 +80,8 @@ def decision_tree(sr,
     # Decision 3: check nir band; determine ice pixels
     classIm[ nir > nirThresh] = 1
     unclass[ nir > nirThresh] = False
+
+    # Decision
 
     # Remaining pixels are classified as ponds
     classIm [ unclass ] = 3

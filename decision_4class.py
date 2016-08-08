@@ -11,8 +11,9 @@ import spectral.io.envi as envi
 def decision_tree(sr,
                   bThresh,
                   gradientThresh,
-                  nirThresh,
-                  landsat='8'):
+                  nirIceThresh,
+                  nirShallowPondThresh,
+                  landsat):
 
     """Performs decision tree classification.
 
@@ -30,8 +31,9 @@ def decision_tree(sr,
     Args:
         sr: surface reflectance numpy array
         bThresh:
+        nirIceThresh:
         gradientThresh:
-        nirThresh:
+        nirShallowPondThresh:
         landsat: number indicating landsat mission used to generate the
             input surface reflectance data, of type <str>. default value is '8'.
             this is used
@@ -41,7 +43,8 @@ def decision_tree(sr,
             assigned class of each surface reflectance pixel:
                 1 = ice
                 2 = water
-                3 = pond
+                3 = shallow melt pond
+                4 = deep melt pond
                 0 = unclassified
 
     """
@@ -76,10 +79,14 @@ def decision_tree(sr,
     unclass[ gradient > gradientThresh ] = False
 
     # Decision 3: check nir band; determine ice pixels
-    classIm[ nir > nirThresh] = 1
-    unclass[ nir > nirThresh] = False
+    classIm[ unclass & (nir > nirIceThresh)] = 1
+    unclass[ nir > nirIceThresh] = False
 
-    # Remaining pixels are classified as ponds
+    # Decision 4: check nir band; determine deep melt ponds
+    classIm[ unclass & (nir < nirShallowPondThresh)] = 4
+    unclass[ nir < nirShallowPondThresh] = False
+
+    # Remaining pixels are classified as shallow ponds
     classIm [ unclass ] = 3
 
     return classIm
@@ -272,47 +279,14 @@ if __name__ == '__main__':
 
 
     # to test thresholding
-                               #b   #nirIce  #gradient, #nirPond
-    thresholds = numpy.array(([0.3, 0.3,  -0.1,     # L5     # blue threshold for L5
-                               0.2, 0.25, -0.1,    # L7
-                               0.2, 0.25, -0.1],   # L8
+                               #b,      #gradient,  #nirIce, #nirShallow
+    thresholds = numpy.array(([0.3,     -0.1,       0.3,        0.065,   # L5     
+                               0.2,     -0.1,       0.25,       0.065,   # L7
+                               0.2,     -0.1,       0.25,       0.025],  # L8
 
-                              [0.31, 0.3, -0.1,    # L5
-                               0.2, 0.25, -0.1,    # L7
-                               0.2, 0.25, -0.1],   # L8
-
-                              [0.32, 0.3, -0.1,  # L5
-                               0.2, 0.25, -0.1,  # L7
-                               0.2, 0.25, -0.1],  # L8
-
-                              [0.33, 0.3, -0.1,  # L5
-                               0.2, 0.25, -0.1,  # L7
-                               0.2, 0.25, -0.1],  # L8
-
-                              [0.34, 0.3, -0.1,    # L5
-                               0.2, 0.25, -0.1,    # L7
-                               0.2, 0.25, -0.1],   # L8
-
-                              [0.32, 0.3, -0.1,             # gradient threshold analysis
-                               0.2, 0.25, -0.1,
-                               0.2, 0.25, -0.1],
-
-                              [0.32, 0.3, -0.11,
-                               0.2, 0.25, -0.11,
-                               0.2, 0.25, -0.11],
-
-                              [0.32, 0.3, -0.12,
-                               0.2, 0.25, -0.12,
-                               0.2, 0.25, -0.12],
-
-                              [0.32, 0.3, -0.09,
-                               0.2, 0.25, -0.09,
-                               0.2, 0.25, -0.09],
-
-                              [0.32, 0.3, -0.08,
-                               0.2, 0.25, -0.08,
-                               0.2, 0.25, -0.08]))
-
+                              [0.3,     -0.1,       0.3,        0.065,   # L5     
+                               0.2,     -0.1,       0.25,       0.070,   # L7
+                               0.2,     -0.1,       0.25,       0.025])) # L8
 
 
     createNewStatFile = 'False'
@@ -348,13 +322,17 @@ if __name__ == '__main__':
             f = open(classificationDir + statFilename, 'w')
             f.write('Landsat ID \t' +
                     'Blue threshold: \t' +
-                    'NIR threshold: \t' +
                     'Gradient threshold: \t' +
+                    'NIR Ice threshold: \t' +
+                    'NIR Shallow Pond threshold: \t' +
                     'Class 0: Unclassified # Pixels \t' +
                     'Class 1: Ice/Snow # Pixels \t' +
                     'Class 2: Water # Pixels \t' +
-                    'Class 3: Melt Pond \t' +
-                    'Pond Fraction per Scene (Pond / (Pond + Ice)) \n')
+                    'Class 3: Shallow Melt Pond \t' +
+                    'Class 4: Deep Melt Pond \t' +
+                    'Shallow Pond Fraction per Scene (Shallow Pond / (Total Pond + Ice)) \t' + 
+                    'Deep Pond Fraction per Scene (Deep Pond / (Total Pond + Ice)) \t' +
+                    'Total Pond Fraction per Scene (Pond / (Pond + Ice)) \n')
             f.close()
 
 
@@ -373,16 +351,23 @@ if __name__ == '__main__':
             else:  # water is darker in L8 and L7 imagery
                 l = 2
 
-            bThresh = thresholds[i, 0 + 3 * l]
-            nirThresh = thresholds[i, 1 + 3 * l]
-            gradientThresh = thresholds[i, 2 + 3 * l]
+            bThresh = thresholds[i, 0 + 4 * l]
+            gradientThresh = thresholds[i, 1 + 4 * l]
+            nirIceThresh = thresholds[i, 2 + 4 * l]
+            nirShallowPondThresh = thresholds[i, 3 + 4 * l]
 
-            print 'decision thresholds: blue = ', str(bThresh), ', ', \
-                  'gradient =  ', str(gradientThresh), ', ', \
-                  'nir = ', str(nirThresh)
+            # print 'decision thresholds: blue = ', str(bThresh), ', ', \
+            #       'gradient =  ', str(gradientThresh), ', ', \
+            #       'nir ice = ', str(nirIceThresh)', ', \
+            #       'nir shallow pond = ', str(nirShallowPondThresh)
+
+            print 'decision thresholds: blue = ' + str(bThresh)
+            print 'gradient =  ' + str(gradientThresh) 
+            print 'nir ice = ' + str(nirIceThresh)
+            print 'nir shallow pond = ' + str(nirShallowPondThresh)
 
             # check to see if this image and threshold combination already exists
-            line = baseFilename+'\t'+str(bThresh)+'\t'+str(nirThresh)+'\t'+str(gradientThresh)
+            line = baseFilename+'\t'+str(bThresh)+'\t'+str(gradientThresh)+str(nirIceThresh)+'\t'+str(nirShallowPondThresh)
             if line in open(classificationDir + statFilename).read():
                 print 'this image has already been processed with the current decision thresholds'
                 pass
@@ -390,7 +375,7 @@ if __name__ == '__main__':
             else:
                 print 'Performing decision tree classification...'
                 treeStartTime = time.time()
-                classIm = decision_tree(srCube, bThresh, gradientThresh, nirThresh, landsat)
+                classIm = decision_tree(srCube, bThresh, gradientThresh, nirIceThresh, nirShallowPondThresh, landsat)
                 treeEndTime = time.time()
                 print 'Time elapsed during decision tree:'
                 timer(treeStartTime, treeEndTime)
@@ -409,20 +394,29 @@ if __name__ == '__main__':
                 unclassCount = numpy.sum(classImMasked == 0)
                 iceCount = numpy.sum(classImMasked == 1)
                 waterCount = numpy.sum(classImMasked == 2)
-                pondCount = numpy.sum(classImMasked == 3)
+                shallowPondCount = numpy.sum(classImMasked == 3)
+                deepPondCount = numpy.sum(classImMasked == 4)
+                totalPondCount = shallowPondCount + deepPondCount
 
                 print '# unclassified pixels = ', unclassCount
                 print '# ice class pixels = ', iceCount
                 print '# water class pixels = ', waterCount
-                print '# pond class pixels = ', pondCount
+                print '# shallow pond class pixels = ', shallowPondCount
+                print '# deep pond class pixels = ', deepPondCount
+                print '# total pond class pixels = ', totalPondCount
 
-                # Compute pond fraction (defined as the percent of total ice area)
-                pondFraction = (pondCount * 1.0 / ( pondCount + iceCount)) * 100
-                print 'Pond Fraction using decision tree for current image: %.4f' % pondFraction
+                # Compute total pond fraction (defined as the percent of total ice area)
+                totalPondFraction = (totalPondCount * 1.0 / ( totalPondCount + iceCount)) * 100
+                print 'Total Pond Fraction using decision tree for current image: %.4f' % totalPondFraction
+
+                shallowPondFraction = (shallowPondCount * 1.0 / ( totalPondCount + iceCount)) * 100
+                print 'Total Pond Fraction using decision tree for current image: %.4f' % shallowPondFraction 
+                deepPondFraction = (deepPondCount * 1.0 / ( totalPondCount + iceCount)) * 100
+                print 'Total Pond Fraction using decision tree for current image: %.4f' % deepPondFraction
 
                 # Save stat info and classification image
                 # create a string to name class images with specificity
-                threshStr = ('blue' + str(bThresh) + '_gradient' +  str(gradientThresh) + '_nir' + str(nirThresh)).replace('.','')
+                threshStr = ('blue' + str(bThresh) + '_gradient' +  str(gradientThresh) + '_nirIce' + str(nirIceThresh) + '_nirShallowPond' + str(nirShallowPondThresh)).replace('.','')
                 classImageFilename = '_decision_tree_class_image_' + threshStr + '.hdr'
                 hdrFilename = baseFilename + classImageFilename
 
@@ -430,13 +424,17 @@ if __name__ == '__main__':
 
                 f.write(baseFilename + '\t' +
                     str(bThresh) + '\t' +
-                    str(nirThresh) + '\t' +
                     str(gradientThresh) + '\t' +
+                    str(nirIceThresh) + '\t' +
+                    str(nirShallowPondThresh) + '\t' +
                     str(unclassCount) + '\t' +
                     str(iceCount) + '\t' +
                     str(waterCount) + '\t' +
-                    str(pondCount) + '\t' +
-                    str(pondFraction) + '\n')
+                    str(shallowPondCount) + '\t' +
+                    str(deepPondCount) + '\t' +
+                    str(shallowPondFraction) + '\t' +
+                    str(deepPondFraction) + '\t' +
+                    str(totalPondFraction) + '\n')
 
             ## to read the stat text file:
             #f = open(outDir + statFilename, 'r')
@@ -462,12 +460,13 @@ if __name__ == '__main__':
                         'file type': 'ENVI Classification'}
 
                 # set class names and colors for display in ENVI
-                classNames =  ['Unclassified', 'Ice', 'Water', 'Pond']
-                unclassColor = [0, 0, 0]
-                iceColor = [255, 255, 255]
-                waterColor = [0, 0, 190]
-                pondColor = [35, 178, 139]
-                classColors = unclassColor + iceColor + waterColor + pondColor
+                classNames =  ['Unclassified', 'Ice', 'Water', 'Shallow Pond', 'Deep Pond']
+                unclassColor = [0, 0, 0]        # black
+                iceColor = [255, 255, 255]      # white
+                waterColor = [0, 0, 0]        # blue
+                shallowPondColor = [103,225,250]    # light blue
+                deepPondColor = [88, 128, 152]     # blue gray
+                classColors = unclassColor + iceColor + waterColor + shallowPondColor + deepPondColor
 
                 envi.save_classification(classificationDir + baseFilename + '/' + hdrFilename,
                                      classImMasked,
