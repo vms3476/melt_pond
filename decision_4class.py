@@ -17,8 +17,9 @@ def decision_tree(sr,
 
     """Performs decision tree classification.
 
-    Assigns input surface reflectance pixels to one of four possible class
-    types (ice, water, pond, or unclassified) based on the following logic:
+    Assigns input surface reflectance pixels to one of five possible class
+    types (ice, water, shallow melt pond, deep melt pond, or unclassified) 
+    based on the following logic:
     1. Checks if the blue band value is less than the blue threshold value.
         If so, this pixel is classified as water.
     2. For the remaining pixels, checks if the gradient value
@@ -26,14 +27,16 @@ def decision_tree(sr,
         If so, this pixel is classified as ice.
     3. For the remaining pixels, checks if the near infrared (NIR) band value is
         greater than the NIR threshold. If so, this pixel is classified as ice.
-        If not, this pixel is classified as melt pond.
+    4. For the remaining pixels, checks if the NIR band value is less than the
+        NIR shallow pond threshold. If so, this pixel is classified as a deep
+        pond. If not, this pixel is classified as a shallow melt pond. 
 
     Args:
         sr: surface reflectance numpy array
-        bThresh:
-        nirIceThresh:
-        gradientThresh:
-        nirShallowPondThresh:
+        bThresh: decimal floating point number [0, 1.0]
+        nirIceThresh: decimal floating point number [0, 1.0]
+        gradientThresh: decimal floating point number [0, 1.0]
+        nirShallowPondThresh: decimal floating point number [0, 1.0]
         landsat: number indicating landsat mission used to generate the
             input surface reflectance data, of type <str>. default value is '8'.
             this is used
@@ -50,7 +53,6 @@ def decision_tree(sr,
     """
 
     rows, cols, bands = sr.shape
-    print 'dimensions of surface reflectance image cube: ', rows, cols, bands
 
     # assign each band to a variable.
     # different index for L8 vs. L5/7 due to coastal band
@@ -269,29 +271,39 @@ def pixel2coord(col, row):
 if __name__ == '__main__':
 
 
-
-
-    ### USER-DEFINED INPUT ###
+    ### USER-DEFINED INPUT #############################################################################################
+    
+    # surface reflectance main directory
     mainDir = '/Users/vscholl/Documents/melt_pond/data/sr/'
-    processingDir = 'threshold_testing/'
+    
+    # subdirectory containing the desired images to process
+    processingDir = 'threshold_testing_4class/'
+    
+    # directory to place classification output files
     classificationDir = '/Users/vscholl/Documents/melt_pond/data/classification/' + processingDir
-    statFilename = 'classification_stats.txt' # filename for text file with pond stats info
+    
+    # filename for text file with classification statistics / information
+    statFilename = 'classification_stats.txt' 
 
 
-    # to test thresholding
+    # define thresholds as an array where each row contains the decision thresholds 
+    # blue, gradient, NIR ice, and NIR shallow pond
+    # for L5, then L7, and finally L8 (in that order)
+
                                #b,      #gradient,  #nirIce, #nirShallow
     thresholds = numpy.array(([0.3,     -0.1,       0.3,        0.065,   # L5     
-                               0.2,     -0.1,       0.25,       0.065,   # L7
-                               0.2,     -0.1,       0.25,       0.025],  # L8
-
-                              [0.3,     -0.1,       0.3,        0.065,   # L5     
                                0.2,     -0.1,       0.25,       0.070,   # L7
                                0.2,     -0.1,       0.25,       0.025])) # L8
 
+                              # [0.3,     -0.1,       0.3,        0.065,   # L5     
+                              #  0.2,     -0.1,       0.25,       0.070,   # L7
+                              #  0.2,     -0.1,       0.25,       0.025])) # L8
 
-    createNewStatFile = 'False'
+    # boolean variable to either create a new statistics file (True) or append
+    # lines to the existing text file with the filename specified above (False)
+    createNewStatFile = False
 
-    ###########################
+    ####################################################################################################################
 
 
 
@@ -314,8 +326,9 @@ if __name__ == '__main__':
 
         if not os.path.exists(classificationDir + baseFilename):
             os.makedirs(classificationDir + baseFilename)
+            createNewStatFile = True
 
-        # for first iteration, if createNewTextFile has been assigned to True,
+        # for first iteration, if createNewStatFile has been assigned to True,
         # create a new text file and write the column titles and threshold values.
         # otherwise, append to the existing file.
         if counter == 0 and createNewStatFile:
@@ -339,6 +352,12 @@ if __name__ == '__main__':
 
         ## Classification
 
+        # for a single combination of thresholds, 
+        # reshape the array for proper indexing
+        if len(thresholds.shape)== 1: 
+            thresholds = thresholds.reshape((1,thresholds.shape[0]))
+            print 'shape of thresholds array: ', thresholds.shape
+
         for i in range(0,thresholds.shape[0]): # row dimension in threshold array
 
             # Decision tree: assign thresholds based on input
@@ -356,20 +375,17 @@ if __name__ == '__main__':
             nirIceThresh = thresholds[i, 2 + 4 * l]
             nirShallowPondThresh = thresholds[i, 3 + 4 * l]
 
-            # print 'decision thresholds: blue = ', str(bThresh), ', ', \
-            #       'gradient =  ', str(gradientThresh), ', ', \
-            #       'nir ice = ', str(nirIceThresh)', ', \
-            #       'nir shallow pond = ', str(nirShallowPondThresh)
-
-            print 'decision thresholds: blue = ' + str(bThresh)
+            print 'decision thresholds: '
+            print 'blue = ' + str(bThresh)
             print 'gradient =  ' + str(gradientThresh) 
             print 'nir ice = ' + str(nirIceThresh)
             print 'nir shallow pond = ' + str(nirShallowPondThresh)
 
             # check to see if this image and threshold combination already exists
-            line = baseFilename+'\t'+str(bThresh)+'\t'+str(gradientThresh)+str(nirIceThresh)+'\t'+str(nirShallowPondThresh)
+            line = baseFilename +'\t'+ str(bThresh) +'\t'+ str(gradientThresh)+'\t'+ str(nirIceThresh)+'\t'+ str(nirShallowPondThresh)
+
             if line in open(classificationDir + statFilename).read():
-                print 'this image has already been processed with the current decision thresholds'
+                print 'This image has already been processed with the current decision thresholds.'
                 pass
 
             else:
@@ -383,12 +399,11 @@ if __name__ == '__main__':
                 # Apply cloud and landsat fill masks to class image
                 classImMasked = bmask * cfmask * classIm
                 rows, cols = classImMasked.shape
-                print 'dimensions of classImMasked: ', classImMasked.shape
 
 
 
                 ## Statistics
-    #           write_stats_file(classImMasked, classificationDir, baseFilename, classImageFilename)
+        #        write_stats_file(classImMasked, classificationDir, baseFilename, classImageFilename)
 
                 # Determine number of pixels assigned as each material
                 unclassCount = numpy.sum(classImMasked == 0)
@@ -408,11 +423,10 @@ if __name__ == '__main__':
                 # Compute total pond fraction (defined as the percent of total ice area)
                 totalPondFraction = (totalPondCount * 1.0 / ( totalPondCount + iceCount)) * 100
                 print 'Total Pond Fraction using decision tree for current image: %.4f' % totalPondFraction
-
                 shallowPondFraction = (shallowPondCount * 1.0 / ( totalPondCount + iceCount)) * 100
-                print 'Total Pond Fraction using decision tree for current image: %.4f' % shallowPondFraction 
+                print 'Shalow Pond Fraction using decision tree for current image: %.4f' % shallowPondFraction 
                 deepPondFraction = (deepPondCount * 1.0 / ( totalPondCount + iceCount)) * 100
-                print 'Total Pond Fraction using decision tree for current image: %.4f' % deepPondFraction
+                print 'Deep Pond Fraction using decision tree for current image: %.4f' % deepPondFraction
 
                 # Save stat info and classification image
                 # create a string to name class images with specificity
@@ -461,11 +475,11 @@ if __name__ == '__main__':
 
                 # set class names and colors for display in ENVI
                 classNames =  ['Unclassified', 'Ice', 'Water', 'Shallow Pond', 'Deep Pond']
-                unclassColor = [0, 0, 0]        # black
+                unclassColor = [128, 128, 128]  # gray
                 iceColor = [255, 255, 255]      # white
-                waterColor = [0, 0, 0]        # blue
-                shallowPondColor = [103,225,250]    # light blue
-                deepPondColor = [88, 128, 152]     # blue gray
+                waterColor = [0, 0, 0]          # black
+                shallowPondColor = [0,190,190]  # light blue-green
+                deepPondColor = [54, 76, 189]   # dark blue
                 classColors = unclassColor + iceColor + waterColor + shallowPondColor + deepPondColor
 
                 envi.save_classification(classificationDir + baseFilename + '/' + hdrFilename,
@@ -477,11 +491,11 @@ if __name__ == '__main__':
                 endTime = time.time()
                 print 'Time elapsed for decision tree & class image generation:' # ~4min
                 timer(startTime, endTime)
+                f.close()
+
+            os.chdir(mainDir + processingDir)
+            counter += 1 # advance to next row in output text file
 
 
-                os.chdir(mainDir + processingDir)
-                counter += 1 # advance to next row in output text file
-
-    f.close()
 
 

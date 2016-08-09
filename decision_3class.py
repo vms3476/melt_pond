@@ -10,10 +10,9 @@ import spectral.io.envi as envi
 
 def decision_tree(sr,
                   bThresh,
-                  nirIceThresh,
                   gradientThresh,
-                  nirPondThresh,
-                  landsat):
+                  nirThresh,
+                  landsat='8'):
 
     """Performs decision tree classification.
 
@@ -42,8 +41,7 @@ def decision_tree(sr,
             assigned class of each surface reflectance pixel:
                 1 = ice
                 2 = water
-                3 = shallow pond
-                4 = deep pond
+                3 = pond
                 0 = unclassified
 
     """
@@ -80,8 +78,6 @@ def decision_tree(sr,
     # Decision 3: check nir band; determine ice pixels
     classIm[ nir > nirThresh] = 1
     unclass[ nir > nirThresh] = False
-
-    # Decision
 
     # Remaining pixels are classified as ponds
     classIm [ unclass ] = 3
@@ -270,56 +266,56 @@ if __name__ == '__main__':
 
     ### USER-DEFINED INPUT ###
     mainDir = '/Users/vscholl/Documents/melt_pond/data/sr/'
-    processingDir = 'threshold_testing/'
+    processingDir = 'threshold_testing_3class/'
     classificationDir = '/Users/vscholl/Documents/melt_pond/data/classification/' + processingDir
     statFilename = 'classification_stats.txt' # filename for text file with pond stats info
 
 
     # to test thresholding
-                               #b   #nirIce  #gradient, #nirPond
+                               #b   #nirIce  #gradient, 
     thresholds = numpy.array(([0.3, 0.3,  -0.1,     # L5     # blue threshold for L5
                                0.2, 0.25, -0.1,    # L7
-                               0.2, 0.25, -0.1],   # L8
+                               0.2, 0.25, -0.1]))   # L8
 
-                              [0.31, 0.3, -0.1,    # L5
-                               0.2, 0.25, -0.1,    # L7
-                               0.2, 0.25, -0.1],   # L8
+                              # [0.31, 0.3, -0.1,    # L5
+                              #  0.2, 0.25, -0.1,    # L7
+                              #  0.2, 0.25, -0.1],   # L8
 
-                              [0.32, 0.3, -0.1,  # L5
-                               0.2, 0.25, -0.1,  # L7
-                               0.2, 0.25, -0.1],  # L8
+                              # [0.32, 0.3, -0.1,  # L5
+                              #  0.2, 0.25, -0.1,  # L7
+                              #  0.2, 0.25, -0.1],  # L8
 
-                              [0.33, 0.3, -0.1,  # L5
-                               0.2, 0.25, -0.1,  # L7
-                               0.2, 0.25, -0.1],  # L8
+                              # [0.33, 0.3, -0.1,  # L5
+                              #  0.2, 0.25, -0.1,  # L7
+                              #  0.2, 0.25, -0.1],  # L8
 
-                              [0.34, 0.3, -0.1,    # L5
-                               0.2, 0.25, -0.1,    # L7
-                               0.2, 0.25, -0.1],   # L8
+                              # [0.34, 0.3, -0.1,    # L5
+                              #  0.2, 0.25, -0.1,    # L7
+                              #  0.2, 0.25, -0.1],   # L8
 
-                              [0.32, 0.3, -0.1,             # gradient threshold analysis
-                               0.2, 0.25, -0.1,
-                               0.2, 0.25, -0.1],
+                              # [0.32, 0.3, -0.1,             # gradient threshold analysis
+                              #  0.2, 0.25, -0.1,
+                              #  0.2, 0.25, -0.1],
 
-                              [0.32, 0.3, -0.11,
-                               0.2, 0.25, -0.11,
-                               0.2, 0.25, -0.11],
+                              # [0.32, 0.3, -0.11,
+                              #  0.2, 0.25, -0.11,
+                              #  0.2, 0.25, -0.11],
 
-                              [0.32, 0.3, -0.12,
-                               0.2, 0.25, -0.12,
-                               0.2, 0.25, -0.12],
+                              # [0.32, 0.3, -0.12,
+                              #  0.2, 0.25, -0.12,
+                              #  0.2, 0.25, -0.12],
 
-                              [0.32, 0.3, -0.09,
-                               0.2, 0.25, -0.09,
-                               0.2, 0.25, -0.09],
+                              # [0.32, 0.3, -0.09,
+                              #  0.2, 0.25, -0.09,
+                              #  0.2, 0.25, -0.09],
 
-                              [0.32, 0.3, -0.08,
-                               0.2, 0.25, -0.08,
-                               0.2, 0.25, -0.08]))
+                              # [0.32, 0.3, -0.08,
+                              #  0.2, 0.25, -0.08,
+                              #  0.2, 0.25, -0.08]))
 
+    
 
-
-    createNewStatFile = 'False'
+    createNewStatFile = False
 
     ###########################
 
@@ -345,9 +341,11 @@ if __name__ == '__main__':
         if not os.path.exists(classificationDir + baseFilename):
             os.makedirs(classificationDir + baseFilename)
 
-        # for first iteration, if createNewTextFile has been assigned to True,
+        # for first iteration, if createNewStatFile has been assigned to True,
         # create a new text file and write the column titles and threshold values.
         # otherwise, append to the existing file.
+        print 'counter = ', counter
+        print 'createNewStatFile = ', createNewStatFile
         if counter == 0 and createNewStatFile:
             f = open(classificationDir + statFilename, 'w')
             f.write('Landsat ID \t' +
@@ -365,6 +363,13 @@ if __name__ == '__main__':
 
         ## Classification
 
+
+        # for a single combination of thresholds, 
+        # reshape the array for proper indexing
+        if len(thresholds.shape)== 1: 
+            thresholds = thresholds.reshape((1,thresholds.shape[0]))
+            print 'shape of thresholds array: ', thresholds.shape
+
         for i in range(0,thresholds.shape[0]): # row dimension in threshold array
 
             # Decision tree: assign thresholds based on input
@@ -377,9 +382,9 @@ if __name__ == '__main__':
             else:  # water is darker in L8 and L7 imagery
                 l = 2
 
-            bThresh = thresholds[i, 0 + 3 * l]
-            nirThresh = thresholds[i, 1 + 3 * l]
-            gradientThresh = thresholds[i, 2 + 3 * l]
+            bThresh = thresholds[i, 0 + (3 * l)]
+            nirThresh = thresholds[i, 1 + (3 * l)]
+            gradientThresh = thresholds[i, 2 + (3 * l)]
 
             print 'decision thresholds: blue = ', str(bThresh), ', ', \
                   'gradient =  ', str(gradientThresh), ', ', \
@@ -387,8 +392,10 @@ if __name__ == '__main__':
 
             # check to see if this image and threshold combination already exists
             line = baseFilename+'\t'+str(bThresh)+'\t'+str(nirThresh)+'\t'+str(gradientThresh)
+
             if line in open(classificationDir + statFilename).read():
                 print 'this image has already been processed with the current decision thresholds'
+                f = open(classificationDir + statFilename, 'a') # open file to append lines
                 pass
 
             else:
@@ -467,10 +474,10 @@ if __name__ == '__main__':
 
                 # set class names and colors for display in ENVI
                 classNames =  ['Unclassified', 'Ice', 'Water', 'Pond']
-                unclassColor = [0, 0, 0]
+                unclassColor = [128, 128, 128]
                 iceColor = [255, 255, 255]
-                waterColor = [0, 0, 190]
-                pondColor = [35, 178, 139]
+                waterColor = [0, 0, 0]
+                pondColor = [0,190,190]
                 classColors = unclassColor + iceColor + waterColor + pondColor
 
                 envi.save_classification(classificationDir + baseFilename + '/' + hdrFilename,
