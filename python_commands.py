@@ -252,11 +252,11 @@ for i in range(0, thresholds.shape[0]):  # row dimension in threshold array
 
     else:  # water is darker in L8 and L7 imagery
         l = 2
+# netcdf to tif
+ncFilename = '/Users/vscholl/Documents/melt_pond/data/seadas/path80row8/LC80800082015172LGN00.L2OC.nc'
 
-    bThresh = thresholds[i, 0 + 3 * l]
-    nirThresh = thresholds[i, 1 + 3 * l]
-    gradientThresh = thresholds[i, 2 + 3 * l]
+info = os.system('gdalinfo ' + ncFilename)
 
-print 'decision thresholds: blue = ', str(bThresh), ', ', \
-    'gradient =  ', str(gradientThresh), ', ', \
-    'nir = ', str(nirThresh)
+im = gdal.Open('NETCDF:' + ncFilename +':') #+ ':geophysical_data')
+print im
+

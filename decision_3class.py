@@ -11,7 +11,7 @@ import spectral.io.envi as envi
 def decision_tree(sr,
                   bThresh,
                   gradientThresh,
-                  nirThresh,
+                  nirIceThresh,
                   landsat='8'):
 
     """Performs decision tree classification.
@@ -31,7 +31,7 @@ def decision_tree(sr,
         sr: surface reflectance numpy array
         bThresh:
         gradientThresh:
-        nirThresh:
+        nirIceThresh:
         landsat: number indicating landsat mission used to generate the
             input surface reflectance data, of type <str>. default value is '8'.
             this is used
@@ -76,8 +76,8 @@ def decision_tree(sr,
     unclass[ gradient > gradientThresh ] = False
 
     # Decision 3: check nir band; determine ice pixels
-    classIm[ nir > nirThresh] = 1
-    unclass[ nir > nirThresh] = False
+    classIm[ nir > nirIceThresh] = 1
+    unclass[ nir > nirIceThresh] = False
 
     # Remaining pixels are classified as ponds
     classIm [ unclass ] = 3
@@ -200,7 +200,7 @@ def pixel2coord(col, row):
 #
 #     f.write(baseFilename + '\t' +
 #             str(bThresh) + '\t' +
-#             str(nirThresh) + '\t' +
+#             str(nirIceThresh) + '\t' +
 #             str(gradientThresh) + '\t' +
 #             str(unclassCount) + '\t' +
 #             str(iceCount) + '\t' +
@@ -262,62 +262,41 @@ def pixel2coord(col, row):
 if __name__ == '__main__':
 
 
-
-
-    ### USER-DEFINED INPUT ###
+    ### USER-DEFINED INPUT #############################################################################################
+    
+    # surface reflectance main directory
     mainDir = '/Users/vscholl/Documents/melt_pond/data/sr/'
-    processingDir = 'threshold_testing_3class/'
+    
+    # subdirectory containing the desired images to process
+    processingDir = 'threshold_testing_4class/'
+    
+    # directory to place classification output files
     classificationDir = '/Users/vscholl/Documents/melt_pond/data/classification/' + processingDir
-    statFilename = 'classification_stats.txt' # filename for text file with pond stats info
-
-
-    # to test thresholding
-                               #b   #nirIce  #gradient, 
-    thresholds = numpy.array(([0.3, 0.3,  -0.1,     # L5     # blue threshold for L5
-                               0.2, 0.25, -0.1,    # L7
-                               0.2, 0.25, -0.1]))   # L8
-
-                              # [0.31, 0.3, -0.1,    # L5
-                              #  0.2, 0.25, -0.1,    # L7
-                              #  0.2, 0.25, -0.1],   # L8
-
-                              # [0.32, 0.3, -0.1,  # L5
-                              #  0.2, 0.25, -0.1,  # L7
-                              #  0.2, 0.25, -0.1],  # L8
-
-                              # [0.33, 0.3, -0.1,  # L5
-                              #  0.2, 0.25, -0.1,  # L7
-                              #  0.2, 0.25, -0.1],  # L8
-
-                              # [0.34, 0.3, -0.1,    # L5
-                              #  0.2, 0.25, -0.1,    # L7
-                              #  0.2, 0.25, -0.1],   # L8
-
-                              # [0.32, 0.3, -0.1,             # gradient threshold analysis
-                              #  0.2, 0.25, -0.1,
-                              #  0.2, 0.25, -0.1],
-
-                              # [0.32, 0.3, -0.11,
-                              #  0.2, 0.25, -0.11,
-                              #  0.2, 0.25, -0.11],
-
-                              # [0.32, 0.3, -0.12,
-                              #  0.2, 0.25, -0.12,
-                              #  0.2, 0.25, -0.12],
-
-                              # [0.32, 0.3, -0.09,
-                              #  0.2, 0.25, -0.09,
-                              #  0.2, 0.25, -0.09],
-
-                              # [0.32, 0.3, -0.08,
-                              #  0.2, 0.25, -0.08,
-                              #  0.2, 0.25, -0.08]))
-
+    
+    # filename for text file with classification statistics / information
+    statFilename = 'classification_stats.txt' 
     
 
+    # define thresholds as an array where each row contains the decision thresholds 
+    # blue, gradient, NIR ice
+    # for L5, then L7, and finally L8 (in that order)
+                  
+                               #b   #gradient  #nirIce, 
+    thresholds = numpy.array(([0.3,  -0.1,  0.3,    # L5     # testing blue threshold for L5
+                               0.2,  -0.1,  0.25,    # L7
+                               0.2,  -0.1,  0.25],   # L8
+
+                              [0.32, -0.1,  0.3,
+                               0.2,  -0.1,  0.25,
+                               0.2,  -0.1,  0.25]))
+
+    # boolean variable to either create a new statistics file (True) or append
+    # lines to the existing text file with the filename specified above (False)
     createNewStatFile = False
 
-    ###########################
+    ####################################################################################################################
+
+
 
 
 
@@ -340,18 +319,17 @@ if __name__ == '__main__':
 
         if not os.path.exists(classificationDir + baseFilename):
             os.makedirs(classificationDir + baseFilename)
+            createNewStatFile = True
 
         # for first iteration, if createNewStatFile has been assigned to True,
         # create a new text file and write the column titles and threshold values.
         # otherwise, append to the existing file.
-        print 'counter = ', counter
-        print 'createNewStatFile = ', createNewStatFile
         if counter == 0 and createNewStatFile:
             f = open(classificationDir + statFilename, 'w')
             f.write('Landsat ID \t' +
                     'Blue threshold: \t' +
-                    'NIR threshold: \t' +
                     'Gradient threshold: \t' +
+                    'NIR Ice threshold: \t' +
                     'Class 0: Unclassified # Pixels \t' +
                     'Class 1: Ice/Snow # Pixels \t' +
                     'Class 2: Water # Pixels \t' +
@@ -362,7 +340,6 @@ if __name__ == '__main__':
 
 
         ## Classification
-
 
         # for a single combination of thresholds, 
         # reshape the array for proper indexing
@@ -383,25 +360,23 @@ if __name__ == '__main__':
                 l = 2
 
             bThresh = thresholds[i, 0 + (3 * l)]
-            nirThresh = thresholds[i, 1 + (3 * l)]
-            gradientThresh = thresholds[i, 2 + (3 * l)]
+            gradientThresh = thresholds[i, 1 + (3 * l)]
+            nirIceThresh = thresholds[i, 2 + (3 * l)]
 
-            print 'decision thresholds: blue = ', str(bThresh), ', ', \
+            print 'current decision thresholds: blue = ', str(bThresh), ', ', \
                   'gradient =  ', str(gradientThresh), ', ', \
-                  'nir = ', str(nirThresh)
+                  'nir = ', str(nirIceThresh)
 
             # check to see if this image and threshold combination already exists
-            line = baseFilename+'\t'+str(bThresh)+'\t'+str(nirThresh)+'\t'+str(gradientThresh)
+            line = baseFilename+'\t'+str(bThresh)+ '\t'+str(gradientThresh) + '\t' +str(nirIceThresh)
 
             if line in open(classificationDir + statFilename).read():
                 print 'this image has already been processed with the current decision thresholds'
-                f = open(classificationDir + statFilename, 'a') # open file to append lines
-                pass
 
             else:
                 print 'Performing decision tree classification...'
                 treeStartTime = time.time()
-                classIm = decision_tree(srCube, bThresh, gradientThresh, nirThresh, landsat)
+                classIm = decision_tree(srCube, bThresh, gradientThresh, nirIceThresh, landsat)
                 treeEndTime = time.time()
                 print 'Time elapsed during decision tree:'
                 timer(treeStartTime, treeEndTime)
@@ -433,7 +408,7 @@ if __name__ == '__main__':
 
                 # Save stat info and classification image
                 # create a string to name class images with specificity
-                threshStr = ('blue' + str(bThresh) + '_gradient' +  str(gradientThresh) + '_nir' + str(nirThresh)).replace('.','')
+                threshStr = ('blue' + str(bThresh) + '_gradient' +  str(gradientThresh) + '_nir' + str(nirIceThresh)).replace('.','')
                 classImageFilename = '_decision_tree_class_image_' + threshStr + '.hdr'
                 hdrFilename = baseFilename + classImageFilename
 
@@ -441,25 +416,13 @@ if __name__ == '__main__':
 
                 f.write(baseFilename + '\t' +
                     str(bThresh) + '\t' +
-                    str(nirThresh) + '\t' +
                     str(gradientThresh) + '\t' +
+                    str(nirIceThresh) + '\t' +
                     str(unclassCount) + '\t' +
                     str(iceCount) + '\t' +
                     str(waterCount) + '\t' +
                     str(pondCount) + '\t' +
                     str(pondFraction) + '\n')
-
-            ## to read the stat text file:
-            #f = open(outDir + statFilename, 'r')
-            #lines = f.read().splitlines()
-            #labels = []
-            #stats = []
-            #for line in lines:
-            #    label, stat = line.strip().split('\t')
-            #    labels.append(label)
-            #    stats.append(stat)
-            #print labels
-            #print stats
 
                 # define metadata parameters for classification header file
                 metadata = {'lines': cols,
@@ -489,11 +452,10 @@ if __name__ == '__main__':
                 endTime = time.time()
                 print 'Time elapsed for decision tree & class image generation:' # ~4min
                 timer(startTime, endTime)
+                f.close()
 
+            os.chdir(mainDir + processingDir)
+            counter += 1 # advance to next row in output text file
 
-                os.chdir(mainDir + processingDir)
-                counter += 1 # advance to next row in output text file
-
-    f.close()
 
 

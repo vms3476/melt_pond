@@ -1,8 +1,17 @@
 PRO stackScale
 
+; This code converts Landsat surface reflectance tif images to units of 
+; reflectance and stacks all bands into a single image file for viewing in 
+; ENVI. Band names and wavelengths are assigned for spectral analysis. 
+; Author: Victoria Scholl 
+; Date: 9 August 2016
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; USER INPUT ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; specify directory of sr images
-dir = '/Users/vscholl/Documents/melt_pond/data/sr/L7test/
-scene = 'LE70660092000169-SC20160715104425/' ;make sure there is a '/' at the end 
+dir = '/Users/vscholl/Documents/melt_pond/data/sr/
+scene = 'LC80840092015152-SC20160615172456/' ;make sure there is a '/' at the end 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 landsatNumber = scene.CharAt(2)
 dir = dir + scene
@@ -52,39 +61,6 @@ print, 'band names = ', bnames
 wavelength_units = 'Micrometers'
 
 ENVI_SETUP_HEAD, fname=fnameStackedScaled, ns=ns, nl=nl, nb=nb, data_type=data_type, offset=0, interleave=0, xstart=0, ystart=0, descrip=descrip, bnames=bnames, sensor_type=sensor_type,  wavelength_units=wavelength_units, wl=wl, /write
-
-
-; create mask for landsat black background and apply it ? 
-
-
-; determine the number of ice/water/pond pixels in a class image
-; where unclassified pixels = 0
-;ice = where(classIm eq 1, iceCount)
-;water = where(classIm eq 2, waterCount)
-;pond = where(classIm eq 3, pondCount)
-
-
-
-
-; calculate pond fraction 
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; extra things that may be useful in the future
-
-; reshape array from [c,r,b] to be [b,c,r]
-;dims = size(stackedScaled)
-;cols = dims(1)
-;rows = dims(2)
-;bands = dims(3)
-;stackedScaledReshaped = reform(stackedScaled,[bands,cols,rows])
-
-;;; tutorial stuff from video
-;device, decomposed = 0
-;window, xsize = 640, ysize=480
-;!P.background = 255
-;map_set, /cylindrical, color = 0, /continents, /grid, /label
 
 
 end
