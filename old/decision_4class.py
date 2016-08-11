@@ -6,7 +6,6 @@ import os
 import gdal
 from osgeo import gdal
 import spectral.io.envi as envi
-import xml.etree.ElementTree
 
 
 def decision_tree(sr,
@@ -95,7 +94,6 @@ def decision_tree(sr,
     return classIm
 
 
-
 def stack_scale_mask(fileDir, scale=0.0001):
 
     """Stacks L# bands into single array, scales to units of reflectance
@@ -118,7 +116,7 @@ def stack_scale_mask(fileDir, scale=0.0001):
 
     os.chdir(fileDir)
     for i, file in enumerate(glob.glob('*band*.tif')):
-        print 'current band: ', file
+        print 'current file: ', file
         currentBand = gdal.Open(file)
         currentBandArray = numpy.asarray(currentBand.GetRasterBand(1).ReadAsArray())
         if i==0:
@@ -126,8 +124,7 @@ def stack_scale_mask(fileDir, scale=0.0001):
             bands = len(glob.glob('*band*.tif'))
             srCube = numpy.zeros([rows, cols, bands])
         srCube[:,:,i] = currentBandArray * scale
-    
-    # uses cfmask band to mask pixels with clouds and cloud shadows
+
     cfmaskFile = gdal.Open(file[:-12] + 'cfmask.tif')
     cfmaskArray = numpy.array(cfmaskFile.GetRasterBand(1).ReadAsArray())
     cfmask = (cfmaskArray == 2) + (cfmaskArray == 4)
@@ -141,7 +138,6 @@ def stack_scale_mask(fileDir, scale=0.0001):
     return srCube, cfmask, bmask, baseFilename, landsat
 
 
-
 def timer(start,end):
     """Returns the time elapsed in hh:mm:ss"""
     hours, rem = divmod(end - start, 3600)
@@ -149,110 +145,11 @@ def timer(start,end):
     print '%d:%02d:%02d' % (hours, minutes, seconds)
 
 
-
 def pixel2coord(col, row):
     """Returns global coordinates to pixel center using base-0 raster index"""
     xp = a * col + b * row + a * 0.5 + b * 0.5 + c
     yp = d * col + e * row + d * 0.5 + e * 0.5 + f
     return(xp, yp)
-
-
-
-def pond_fraction_per_latitude(xmlFile, classImMasked, latIncrements): 
-    """ Calculates melt pond fraction as a functin of latitude
-
-    Args: 
-        xmlFile: filepath and name of xml file. this is parsed to
-            determine the latitude range of the current landsat scene.
-        classImMasked: numpy array containing integer values representing the
-            assigned class of each surface reflectance pixel. Masks for
-            clouds, cloud shadows, and backgound/fill values have been
-            applied.
-        latIncrements: numpy array containing a list of floating point
-            latitude increments, between which pond fraction will be 
-            calculated. 
-
-    Returns: 
-        pondFractions: numpy array containing pond fraction per
-            latitude increment range. number of elements is one 
-            less than the length of the latIncrements array. 
-
-    """ 
-
-    # create separate image arrays for melt ponds and ice 
-    pondIm = (classIm == 3) + (classIm == 4)
-    iceIm = (classIm == 1)
-
-    # parse the Landsat xml file to determine lat long for UL and LR pixels
-    root = xml.etree.ElementTree.parse(xmlFile).getroot()
-    subroot = root.getchildren()
-    global_metadata = subroot[0]
-    elements = global_metadata.getchildren()
-    for i, j in enumerate(elements): 
-        if 'location' in j.attrib: 
-            if j.attrib['location'] == 'UL': 
-                latUL = float(j.attrib['latitude'])
-                #lonUL = float(j.attrib['longitude'])
-            else: 
-                latLR = float(j.attrib['latitude'])
-                #lonLR = float(j.attrib['longitude'])
-
-    # determine lat range and values for UR,LL corners
-    latLL = latLR
-    latUR = latUL
-    latRange = numpy.asarray([min(latUL, latLL, latUR, latLR),max(latUL, latLL, latUR, latLR)])
-    latIncrements = numpy.arange(latMin, latMax + latIncrement, latIncrement)
-    print 'lat increments defined by user: ', latIncrements
-    print 'lat range of current image: ', latRange
-
-
-    rEnd = 0 # counter for starting row index
-    data = False # boolean variable indicates whether image data exists in latitude increment
-    pondCounts = numpy.zeros((len(latIncrements)-1)) # empty arrays to store pond and ice counts
-    iceCounts = numpy.zeros((len(latIncrements)-1))
-
-    for i in range(0, len(latIncrements)-1): 
-        lat1 = latIncrements[i]     # low end of current latitude increment
-        lat2 = latIncrements[i+1]   # high end of current latitude increment
-        
-        # determine first latitude increment range where there is image data
-        if (latRange[0] >= lat1) and (latRange[0] < lat2): 
-            print 'image data starts to exist between ', lat1, ' and ', lat2
-
-            # interpolate to find the number of rows corresponding to the current latitude increment
-            rStart = int(numpy.round(numpy.interp(lat2,latRange,numpy.asarray([0,rows-1]))))
-            pondCounts[i] = (numpy.sum(pondIm[(rows - rStart) : (rows - rEnd), :]))
-            iceCounts[i] = (numpy.sum(iceIm[(rows - rStart) : (rows - rEnd), :]))
-            rEnd = rStart
-            data = True
-        
-        # check to see if it's the last latitude increment where image data exists
-        elif (latRange[1] >= lat1) and (latRange[1] < lat2):
-            
-            print 'last increment that image data exists between: ', lat1, ' and ', lat2
-            pondCounts[i] = (numpy.sum(pondIm[0 : (rows - rEnd), :]))
-            iceCounts[i] = (numpy.sum(iceIm[0 : (rows - rEnd), :]))
-            break
-
-        # for intermediate latitude increments where image data exists
-        elif data == True: 
-            print 'current increment: ', lat1, ' and ', lat2
-            rStart = int(numpy.round(numpy.interp(lat2,latRange,numpy.asarray([0,rows-1]))))
-            pondCounts[i] = (numpy.sum(pondIm[(rows - rStart) : (rows - rEnd), :]))
-            iceCounts[i] = (numpy.sum(iceIm[(rows - rStart) : (rows - rEnd), :]))
-            rEnd = rStart
-
-        else: 
-            print 'No image data in current latitude increment: ', lat1, ' and ', lat2
-
-    # convert lists to arrays for pond fraction calculation
-    pondCounts = numpy.asarray(pondCounts)
-    iceCounts = numpy.asarray(iceCounts)
-    pondFractions = (pondCounts * 1.0 / ( pondCounts + iceCounts)) * 100
-
-    return pondFractions
-
-
 
 
 
@@ -266,13 +163,13 @@ if __name__ == '__main__':
     mainDir = '/Users/vscholl/Documents/melt_pond/data/sr/'
     
     # subdirectory containing the desired images to process
-    processingDir = 'pond_images/'#'path80row8/'
+    processingDir = 'path7475row910/'
     
     # directory to place classification output files
     classificationDir = '/Users/vscholl/Documents/melt_pond/data/classification/' + processingDir
     
     # filename for text file with classification statistics / information
-    statFilename = 'decision_classification_4class_stats.txt' 
+    statFilename = 'decision_tree_classification_stats.txt' 
 
 
     # define thresholds as an array where each row contains the decision thresholds 
@@ -293,12 +190,6 @@ if __name__ == '__main__':
     # lines to the existing text file with the filename specified above (False)
     createNewStatFile = False
 
-
-    # specify desired latitude min, max, and increment for pond fraction to be computed within
-    latMin = 70
-    latMax = 75 
-    latIncrement = 1.0
-
     ####################################################################################################################
 
 
@@ -310,18 +201,15 @@ if __name__ == '__main__':
     dirList = glob.glob('L*')
     counter = 0 # used to determine the first iteration
     for fileDir in dirList:
-        print '---------------------'
-        print 'currently processing SR directory:  ', fileDir
-        
+        print 'currently processing ', fileDir
         ## Read imagery, convert to units of reflectance in a single array
         scale = 0.0001
         srCube, cfmask, bmask, baseFilename, landsat = stack_scale_mask(fileDir, scale)
-        xmlFile = mainDir + processingDir + fileDir + '/' + baseFilename+ '.xml'
-        latIncrements = numpy.arange(latMin, latMax + latIncrement, latIncrement)
         print 'landsat number: ', landsat
         endTime = time.time()
         print 'Time elapsed to stack and scale SR and create masks:' # ~3min
         timer(startTime, endTime)
+
 
         if not os.path.exists(classificationDir + baseFilename):
             os.makedirs(classificationDir + baseFilename)
@@ -340,19 +228,13 @@ if __name__ == '__main__':
                     'Class 0: Unclassified # Pixels \t' +
                     'Class 1: Ice/Snow # Pixels \t' +
                     'Class 2: Water # Pixels \t' +
-                    'Class 3: Shallow Melt Pond # Pixels \t' +
-                    'Class 4: Deep Melt Pond # Pixels \t' +
+                    'Class 3: Shallow Melt Pond \t' +
+                    'Class 4: Deep Melt Pond \t' +
                     'Shallow Pond Fraction per Scene ' + 
                     '(Shallow Pond / (Total Pond + Ice)) \t' + 
                     'Deep Pond Fraction per Scene ' + 
                     '(Deep Pond / (Total Pond + Ice)) \t' +
-                    'Total Pond Fraction per Scene (Pond / (Pond + Ice)) \t')
-            
-            # add columns to text file for each latitude range
-            for i in range(0, len(latIncrements)-1): 
-                f.write(str(latIncrements[i]) + ' - ' + str(latIncrements[i+1]) + ' N \t')
-
-            f.write('\n') 
+                    'Total Pond Fraction per Scene (Pond / (Pond + Ice)) \n')
             f.close()
 
 
@@ -362,6 +244,7 @@ if __name__ == '__main__':
         # for a single combination of thresholds, reshape the array for proper indexing
         if len(thresholds.shape)== 1: 
             thresholds = thresholds.reshape((1,thresholds.shape[0]))
+            print 'shape of thresholds array: ', thresholds.shape
 
         for i in range(0,thresholds.shape[0]): # row dimension in threshold array
 
@@ -380,7 +263,7 @@ if __name__ == '__main__':
             nirIceThresh = thresholds[i, 2 + 4 * l]
             nirShallowPondThresh = thresholds[i, 3 + 4 * l]
 
-            print 'Current thresholds for decision tree classification: blue = ', str(bThresh), ', ', \
+            print 'current decision thresholds: blue = ', str(bThresh), ', ', \
                   'gradient =  ', str(gradientThresh), ', ', \
                   'nir ice = ', str(nirIceThresh), ', nir shallow pond = ', \
                    str(nirShallowPondThresh)
@@ -407,7 +290,6 @@ if __name__ == '__main__':
 
 
                 ## Statistics
-                print 'Calculating statistics for classification results...'
 
                 # Determine number of pixels assigned as each material
                 unclassCount = numpy.sum(classImMasked == 0)
@@ -428,11 +310,8 @@ if __name__ == '__main__':
                 classImageFilename = '_decision_tree_class_image_' + threshStr + '.hdr'
                 hdrFilename = baseFilename + classImageFilename
 
-                # calculate pond fraction as a function of latitude
-                pondFractions = pond_fraction_per_latitude(xmlFile, classImMasked, latIncrements)
+                f = open(classificationDir + statFilename, 'a') # open file to append lines
 
-                # open text file. write statistics info for the current image & threshold combination
-                f = open(classificationDir + statFilename, 'a') 
                 f.write(baseFilename + '\t' +
                     str(bThresh) + '\t' +
                     str(gradientThresh) + '\t' +
@@ -445,12 +324,7 @@ if __name__ == '__main__':
                     str(deepPondCount) + '\t' +
                     str(shallowPondFraction) + '\t' +
                     str(deepPondFraction) + '\t' +
-                    str(totalPondFraction) + '\t')
-
-                # write the total pond fractions as a function of latitude
-                for i in range(0, len(latIncrements)-1): 
-                    f.write(str(pondFractions[i]) + ' \t')
-                f.write('\n') 
+                    str(totalPondFraction) + '\n')
 
                 # define metadata parameters for classification header file
                 metadata = {'lines': cols,
